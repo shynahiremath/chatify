@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { ENV } from "../lib/env.js";
 
 const userSchema = new mongoose.Schema({
   username: {
