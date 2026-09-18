@@ -7,9 +7,10 @@ const aj = arcjet({
     shield({ mode: "LIVE" }),
     // Create a bot detection rule
     detectBot({
-      mode: "LIVE", // Blocks requests. Use "DRY_RUN" to log only
+      mode: ENV.NODE_ENV === "development" ? "DRY_RUN" : "LIVE",
       allow: [
         "CATEGORY:SEARCH_ENGINE", // Google, Bing, etc
+        "CATEGORY:MONITOR",       // Uptime monitoring tools
       ],
     }),
     slidingWindow({
