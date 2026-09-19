@@ -88,4 +88,23 @@ sendMessage: async (messageData) => {
   }
 },
 
+subscribeToMessages: () => {
+  const { selectedUser } = get();
+  if (!selectedUser) return;
+
+  const socket = useAuthStore.getState().socket;
+  if (!socket) return;
+
+  socket.on("newMessage", (newMessage) => {
+    // only show it if it came from the chat that's currently open
+    if (newMessage.senderId !== selectedUser._id) return;
+    set({ messages: [...get().messages, newMessage] });
+  });
+},
+
+unsubscribeFromMessages: () => {
+  const socket = useAuthStore.getState().socket;
+  if (socket) socket.off("newMessage");
+},
+
 }));
