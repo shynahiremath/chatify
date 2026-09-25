@@ -13,7 +13,9 @@ const __dirname = path.resolve();
 const PORT = ENV.PORT || 3000;
 
 app.use(cors({origin:ENV.CLIENT_URL, credentials:true}));
-app.use(express.json({limit: "10mb"}));
+// raised from 10mb: file attachments are sent as base64, which is about 33%
+// larger than the raw file, so this covers files up to roughly 15mb
+app.use(express.json({limit: "20mb"}));
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
