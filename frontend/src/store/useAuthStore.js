@@ -11,6 +11,7 @@ export const useAuthStore = create((set, get) => ({
   isCheckingAuth: true,
   isSigningUp: false,
   isLoggingIn: false,
+  isUpdatingProfile: false, // NEW: true while an avatar/username/status save is in flight
   socket: null,
   onlineUsers: [],
 
@@ -67,14 +68,21 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  // data can be { profilePic } and/or { username } and/or { statusMessage }.
+  // Returns true/false so callers (inline editors) know whether to exit edit mode.
   updateProfile: async (data) => {
+    set({ isUpdatingProfile: true });
     try {
       const res = await axiosInstance.put("/auth/update-profile", data);
       set({ authUser: res.data });
       toast.success("Profile updated successfully");
+      return true;
     } catch (error) {
       console.log("Error in update profile:", error);
       toast.error(error.response?.data?.message || "Update failed");
+      return false;
+    } finally {
+      set({ isUpdatingProfile: false });
     }
   },
 
