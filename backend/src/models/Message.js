@@ -33,13 +33,20 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
-    // NEW: a shared file attachment (any type) uploaded via Cloudinary
+    // a shared file attachment (any type) uploaded via Cloudinary
     file: {
       url: { type: String },
       name: { type: String },
       type: { type: String }, // the browser MIME type, e.g. "application/pdf"
       size: { type: Number }, // bytes
     },
+    // a recorded voice message
+    // a recorded voice message
+voice: {
+  url: { type: String },
+  duration: { type: Number }, // seconds
+  transcription: { type: String, default: "" },
+},
     // sent -> delivered (receiver online) -> read (receiver opened the chat)
     status: {
       type: String,
@@ -47,23 +54,23 @@ const messageSchema = new mongoose.Schema(
       default: "sent",
     },
 
-    // NEW: the message this one is replying to (if any)
+    // the message this one is replying to (if any)
     replyTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
       default: null,
     },
-    // NEW: set when the sender edits the text
+    // set when the sender edits the text
     isEdited: {
       type: Boolean,
       default: false,
     },
-    // NEW: "delete for everyone" is a soft delete, so replies to it still make sense
+    // "delete for everyone" is a soft delete, so replies to it still make sense
     isDeleted: {
       type: Boolean,
       default: false,
     },
-    // NEW: at most one reaction per user per message
+    // at most one reaction per user per message
     reactions: {
       type: [reactionSchema],
       default: [],

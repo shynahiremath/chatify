@@ -16,8 +16,9 @@ function ChatContainer() {
     isMessagesLoading,
     subscribeToMessages,
     unsubscribeFromMessages,
+    addScheduledSentMessage,
   } = useChatStore();
-  const { authUser } = useAuthStore();
+  const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
 
   const [highlightedId, setHighlightedId] = useState(null);
@@ -35,6 +36,15 @@ function ChatContainer() {
     subscribeToMessages,
     unsubscribeFromMessages,
   ]);
+
+  // show a scheduled message in the open chat when the server sends it
+  useEffect(() => {
+    if (!socket) return;
+    const onScheduledSent = ({ message }) => addScheduledSentMessage(message);
+    socket.on("scheduledSent", onScheduledSent);
+    // remove only this handler, so the toast listener in the auth store stays
+    return () => socket.off("scheduledSent", onScheduledSent);
+  }, [socket, addScheduledSentMessage]);
 
   // scroll down only when a NEW message arrives, not when an old one is
   // edited / deleted / reacted to (that would yank the chat to the bottom)

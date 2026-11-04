@@ -1,77 +1,157 @@
-import { BanIcon, CheckCheckIcon, CheckIcon, ClockIcon, DownloadIcon, FileIcon } from "lucide-react";
+import {
+  BanIcon,
+  CheckCheckIcon,
+  CheckIcon,
+  ClockIcon,
+  DownloadIcon,
+  FileIcon,
+} from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import MessageActions from "./MessageActions";
 
-// ticks under my own messages: clock = sending, ✓ = sent, ✓✓ = delivered, blue ✓✓ = read
-function MessageStatus({ message }) {
-  if (message.isOptimistic) {
-    return <ClockIcon className="size-3.5 opacity-75" aria-label="Sending" />;
-  }
-  const status = message.status || "delivered"; // older messages have no status
-  if (status === "sent") {
-    return <CheckIcon className="size-3.5 text-white/70" aria-label="Sent" />;
-  }
-  if (status === "delivered") {
-    return <CheckCheckIcon className="size-3.5 text-white/70" aria-label="Delivered" />;
-  }
-  return <CheckCheckIcon className="size-3.5 text-blue-900" aria-label="Read" />;
+// A saved voice message always has an audio url. While a voice message is
+// still being sent (optimistic), it has no url yet. An empty `voice` object
+// (for example one created by a schema default) must NOT count as a voice
+// message, otherwise every text message shows a fake "Voice message" box.
+function isVoiceMessage(message) {
+  if (!message?.voice) return false;
+  if (message.voice.url) return true;
+  return Boolean(message.isOptimistic);
 }
 
-// the small quoted box shown above a reply
+// Message delivery status
+function MessageStatus({ message }) {
+  if (message.isOptimistic) {
+    return (
+      <ClockIcon
+        className="size-3.5 opacity-75"
+        aria-label="Sending"
+      />
+    );
+  }
+
+  const status = message.status || "delivered";
+
+  if (status === "sent") {
+    return (
+      <CheckIcon
+        className="size-3.5 text-white/70"
+        aria-label="Sent"
+      />
+    );
+  }
+
+  if (status === "delivered") {
+    return (
+      <CheckCheckIcon
+        className="size-3.5 text-white/70"
+        aria-label="Delivered"
+      />
+    );
+  }
+
+  return (
+    <CheckCheckIcon
+      className="size-3.5 text-blue-900"
+      aria-label="Read"
+    />
+  );
+}
+
+// Reply preview
 function ReplyPreview({ reply, onJump }) {
   const { authUser } = useAuthStore();
   const { selectedUser } = useChatStore();
 
-  const label = reply.senderId === authUser._id ? "You" : selectedUser.username;
+  const label =
+    reply.senderId === authUser?._id
+      ? "You"
+      : selectedUser?.username || "User";
+
   const preview = reply.isDeleted
     ? "This message was deleted"
     : reply.text ||
       (reply.image ? "📷 Photo" : "") ||
       (reply.file ? `📎 ${reply.file.name}` : "") ||
-      (reply.voice ? "🎤 Voice message" : "");
+      (reply.voice?.url ? "🎤 Voice message" : "");
 
   return (
     <button
       type="button"
-      onClick={() => onJump(reply._id)}
+      onClick={() => onJump?.(reply._id)}
       className="block w-full text-left mb-2 rounded-md border-l-4 border-cyan-300 bg-black/20 px-2 py-1 text-xs"
     >
-      <span className="block font-semibold text-cyan-200">{label}</span>
-      <span className={`block truncate opacity-80 ${reply.isDeleted ? "italic" : ""}`}>
+      <span className="block font-semibold text-cyan-200">
+        {label}
+      </span>
+
+      <span
+        className={`block truncate opacity-80 ${
+          reply.isDeleted ? "italic" : ""
+        }`}
+      >
         {preview}
       </span>
     </button>
   );
 }
 
+// Format voice duration
 function formatDuration(seconds) {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  const totalSeconds = Number(seconds) || 0;
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
+// Format file size
 function formatBytes(bytes) {
   if (!bytes) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  }
+
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function MessageBubble({ message, isMine, isHighlighted, onJumpToMessage }) {
+function MessageBubble({
+  message,
+  isMine,
+  isHighlighted,
+  onJumpToMessage,
+}) {
   const { authUser } = useAuthStore();
   const { toggleReaction } = useChatStore();
 
-  // group reactions: { "👍": { count: 2, mine: true }, ... }
+  const hasVoice = isVoiceMessage(message);
+
+  // Group reactions
   const grouped = {};
-  (message.reactions ?? []).forEach((r) => {
-    grouped[r.emoji] ??= { count: 0, mine: false };
-    grouped[r.emoji].count += 1;
-    if (r.userId === authUser._id) grouped[r.emoji].mine = true;
+
+  (message.reactions ?? []).forEach((reaction) => {
+    grouped[reaction.emoji] ??= {
+      count: 0,
+      mine: false,
+    };
+
+    grouped[reaction.emoji].count += 1;
+
+    if (reaction.userId === authUser?._id) {
+      grouped[reaction.emoji].mine = true;
+    }
   });
+
   const reactionEntries = Object.entries(grouped);
 
-  const canUseActions = !message.isDeleted && !message.isOptimistic;
+  const canUseActions =
+    !message.isDeleted && !message.isOptimistic;
 
   return (
     <div className={`chat ${isMine ? "chat-end" : "chat-start"}`}>
@@ -82,10 +162,18 @@ function MessageBubble({ message, isMine, isHighlighted, onJumpToMessage }) {
             : "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
         } ${isHighlighted ? "ring-2 ring-cyan-400" : ""}`}
       >
-        {canUseActions && <MessageActions message={message} isMine={isMine} />}
+        {canUseActions && (
+          <MessageActions
+            message={message}
+            isMine={isMine}
+          />
+        )}
 
         {message.replyTo && (
-          <ReplyPreview reply={message.replyTo} onJump={onJumpToMessage} />
+          <ReplyPreview
+            reply={message.replyTo}
+            onJump={onJumpToMessage}
+          />
         )}
 
         {message.isDeleted ? (
@@ -95,6 +183,7 @@ function MessageBubble({ message, isMine, isHighlighted, onJumpToMessage }) {
           </p>
         ) : (
           <>
+            {/* IMAGE */}
             {message.image && (
               <img
                 src={message.image}
@@ -103,8 +192,9 @@ function MessageBubble({ message, isMine, isHighlighted, onJumpToMessage }) {
               />
             )}
 
-            {message.file && (
-              message.file.url ? (
+            {/* FILE */}
+            {message.file &&
+              (message.file.url ? (
                 <a
                   href={message.file.url}
                   target="_blank"
@@ -113,43 +203,83 @@ function MessageBubble({ message, isMine, isHighlighted, onJumpToMessage }) {
                   className="flex items-center gap-2 rounded-lg bg-black/20 px-3 py-2 hover:bg-black/30 transition-colors"
                 >
                   <FileIcon className="size-6 shrink-0" />
+
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm truncate">{message.file.name}</p>
-                    <p className="text-xs opacity-70">{formatBytes(message.file.size)}</p>
+                    <p className="text-sm truncate">
+                      {message.file.name}
+                    </p>
+
+                    <p className="text-xs opacity-70">
+                      {formatBytes(message.file.size)}
+                    </p>
                   </div>
+
                   <DownloadIcon className="size-4 shrink-0 opacity-70" />
                 </a>
               ) : (
-                // still uploading: same look, but not a link yet
                 <div className="flex items-center gap-2 rounded-lg bg-black/20 px-3 py-2 opacity-75">
                   <FileIcon className="size-6 shrink-0" />
+
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm truncate">{message.file.name}</p>
-                    <p className="text-xs opacity-70">Sending...</p>
+                    <p className="text-sm truncate">
+                      {message.file.name}
+                    </p>
+
+                    <p className="text-xs opacity-70">
+                      Sending...
+                    </p>
                   </div>
                 </div>
-              )
-            )}
+              ))}
 
-            {message.voice && (
-              message.voice.url ? (
+            {/* VOICE MESSAGE PLAYER */}
+            {hasVoice &&
+              (message.voice.url ? (
                 <div className="flex items-center gap-2">
-                  <audio controls src={message.voice.url} className="h-8 max-w-[220px]" />
+                  <audio
+                    controls
+                    src={message.voice.url}
+                    className="h-8 max-w-[220px]"
+                  />
+
                   {message.voice.duration != null && (
-                    <span className="text-xs opacity-70">{formatDuration(message.voice.duration)}</span>
+                    <span className="text-xs opacity-70">
+                      {formatDuration(message.voice.duration)}
+                    </span>
                   )}
                 </div>
               ) : (
                 <div className="flex items-center gap-2 rounded-lg bg-black/20 px-3 py-2 opacity-75 w-fit">
-                  <span className="text-sm">🎤 Voice message</span>
-                  <span className="text-xs opacity-70">Sending...</span>
+                  <span className="text-sm">
+                    🎤 Voice message
+                  </span>
+
+                  <span className="text-xs opacity-70">
+                    Sending...
+                  </span>
                 </div>
-              )
+              ))}
+
+            {/* MESSAGE TEXT
+                For voice messages this is the recognised text, shown
+                underneath the audio player. */}
+            {message.text && (
+              <p
+                className={`break-words whitespace-pre-wrap pr-4 ${
+                  message.image || message.file || hasVoice
+                    ? "mt-2"
+                    : ""
+                }`}
+              >
+                {message.text}
+              </p>
             )}
 
-            {message.text && (
-              <p className={`break-words pr-4 ${message.image || message.file || message.voice ? "mt-2" : ""}`}>
-                {message.text}
+            {/* Older voice messages saved the text only inside
+                voice.transcription, so show it when there is no message text */}
+            {hasVoice && !message.text && message.voice.transcription && (
+              <p className="mt-2 break-words whitespace-pre-wrap pr-4">
+                {message.voice.transcription}
               </p>
             )}
           </>
@@ -163,6 +293,7 @@ function MessageBubble({ message, isMine, isHighlighted, onJumpToMessage }) {
                 key={emoji}
                 type="button"
                 onClick={() => toggleReaction(message._id, emoji)}
+                aria-label={`React with ${emoji}`}
                 className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs ${
                   mine
                     ? "bg-black/40 border-white/40"
@@ -176,18 +307,27 @@ function MessageBubble({ message, isMine, isHighlighted, onJumpToMessage }) {
           </div>
         )}
 
-        {/* TIME + EDITED + TICKS */}
+        {/* TIME, EDITED STATUS AND DELIVERY TICKS */}
         <div className="text-xs mt-1 flex items-center gap-1">
           <span className="opacity-75">
-            {new Date(message.createdAt).toLocaleTimeString(undefined, {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            {message.createdAt
+              ? new Date(message.createdAt).toLocaleTimeString(
+                  undefined,
+                  {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }
+                )
+              : ""}
           </span>
+
           {message.isEdited && !message.isDeleted && (
             <span className="opacity-75 italic">edited</span>
           )}
-          {isMine && !message.isDeleted && <MessageStatus message={message} />}
+
+          {isMine && !message.isDeleted && (
+            <MessageStatus message={message} />
+          )}
         </div>
       </div>
     </div>

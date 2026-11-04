@@ -6,6 +6,9 @@ import { ENV } from "./env.js";
 import { socketAuthMiddleware } from "../middleware/socket.auth.middleware.js";
 import Message from "../models/Message.js";
 import User from "../models/user.js";
+import ScheduledMessage from "../models/ScheduledMessage.js";
+import { createGameManager } from "./games.js";
+import { createSosManager } from "./sos.js"; // NEW SOS
 
 const app = express();
 const server = http.createServer(app);
@@ -30,6 +33,12 @@ export function getReceiverSocketId(userId) {
   return Object.hasOwn(userSocketMap, key) ? userSocketMap[key] : undefined;
 }
 
+// mini-games (tic-tac-toe). The arrow function is looked up lazily.
+const gameManager = createGameManager(io, (id) => getReceiverSocketId(id));
+
+// NEW SOS: emergency alerts
+const sosManager = createSosManager(io, (id) => getReceiverSocketId(id));
+
 io.on("connection", async (socket) => {
   console.log("A user connected:", socket.user.username);
 
@@ -38,6 +47,12 @@ io.on("connection", async (socket) => {
 
   // send events to all connected clients
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
+
+  // game events (invite / accept / move / leave)
+  gameManager.register(socket, userId);
+
+  // NEW SOS: sos events (start / cancel / ack / contacts) + catch-up of active SOS
+  sosManager.register(socket, userId);
 
   // ---------- TYPING INDICATOR ----------
   socket.on("typing", ({ to } = {}) => {
@@ -97,9 +112,33 @@ io.on("connection", async (socket) => {
     console.log("Error marking messages as delivered:", error.message);
   }
 
+  // ---------- MISSED REMINDERS ----------
+  // reminders that fired while this user was offline
+  try {
+    const missed = await ScheduledMessage.find({
+      senderId: userId,
+      kind: "reminder",
+      status: "missed",
+    }).sort({ sendAt: 1 });
+
+    for (const item of missed) {
+      socket.emit("reminder", { id: item._id, text: item.text, missed: true });
+      item.status = "sent";
+      await item.save();
+    }
+  } catch (error) {
+    console.log("Error delivering missed reminders:", error.message);
+  }
+
   // ---------- DISCONNECT + LAST SEEN ----------
   socket.on("disconnect", async () => {
     console.log("A user disconnected:", socket.user.username);
+
+    // leaving (or refreshing) during a game counts as a forfeit
+    gameManager.onDisconnect(userId);
+
+    // (SOS is intentionally NOT cancelled on disconnect: if your connection
+    // drops, your contacts should still be alerted)
 
     // if the user opened another tab, that newer socket owns the entry now
     if (userSocketMap[userId] !== socket.id) return;

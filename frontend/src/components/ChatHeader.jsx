@@ -1,13 +1,15 @@
 import { useEffect } from "react";
-import { ArrowLeftIcon, XIcon } from "lucide-react";
+import { ArrowLeftIcon, Gamepad2Icon, XIcon } from "lucide-react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { useGameStore } from "../store/useGameStore";
 import { formatLastSeen } from "../lib/dateUtils";
 
 function ChatHeader() {
   const { selectedUser, setSelectedUser, typingUsers, lastSeenMap } =
     useChatStore();
   const { onlineUsers } = useAuthStore();
+  const { game, sendInvite } = useGameStore();
   const isOnline = onlineUsers.includes(selectedUser._id);
   const isTyping = typingUsers[selectedUser._id];
   // live value (set when they go offline this session) wins over the fetched one
@@ -74,14 +76,28 @@ function ChatHeader() {
         </div>
       </div>
 
-      {/* Close button: desktop only (mobile uses the back arrow) */}
-      <button
-        onClick={() => setSelectedUser(null)}
-        aria-label="Close chat"
-        className="hidden md:block"
-      >
-        <XIcon className="w-5 h-5 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer" />
-      </button>
+      <div className="flex items-center gap-4 shrink-0">
+        {/* Play tic-tac-toe */}
+        <button
+          type="button"
+          onClick={() => sendInvite(selectedUser._id)}
+          disabled={!isOnline || Boolean(game)}
+          aria-label="Play tic-tac-toe"
+          title={isOnline ? "Play tic-tac-toe" : "User is offline"}
+          className="text-slate-500 dark:text-slate-400 hover:text-cyan-500 dark:hover:text-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <Gamepad2Icon className="w-5 h-5" />
+        </button>
+
+        {/* Close button: desktop only (mobile uses the back arrow) */}
+        <button
+          onClick={() => setSelectedUser(null)}
+          aria-label="Close chat"
+          className="hidden md:block"
+        >
+          <XIcon className="w-5 h-5 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer" />
+        </button>
+      </div>
     </div>
   );
 }
