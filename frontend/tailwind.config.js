@@ -1,11 +1,23 @@
+
 import daisyui from "daisyui";
 
-/** @type {import('tailwindcss').Config} */
+const accent = (shade) => `rgb(var(--accent-${shade}) / <alpha-value>)`;
+
 export default {
   darkMode: "class",
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      colors: {
+        cyan: {
+          200: accent(200),
+          300: accent(300),
+          400: accent(400),
+          500: accent(500),
+          600: accent(600),
+          700: accent(700),
+        },
+      },
       animation: {
         border: "border 4s linear infinite",
       },
@@ -14,7 +26,6 @@ export default {
           to: { "--border-angle": "360deg" },
         },
       },
-      
     },
   },
   plugins: [daisyui],
