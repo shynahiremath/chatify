@@ -12,6 +12,7 @@ import {
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useThemeStore } from "../store/useThemeStore";
+import MoodPicker from "./MoodPicker";
 
 const mouseClickSound = new Audio("/sounds/mouse-click.mp3");
 
@@ -88,6 +89,7 @@ function ProfileHeader() {
 
         {/* BUTTONS */}
         <div className="flex gap-4 items-center shrink-0">
+            <MoodPicker />
           {/* THEME TOGGLE BTN */}
           <button
             className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
