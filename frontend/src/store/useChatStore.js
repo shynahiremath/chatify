@@ -248,6 +248,14 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  // a scheduled message of mine was just sent: show it if that chat is open
+  addScheduledSentMessage: (message) => {
+    const { selectedUser, messages } = get();
+    if (!selectedUser || selectedUser._id !== message.receiverId) return;
+    if (messages.some((m) => m._id === message._id)) return;
+    set({ messages: [...messages, message] });
+  },
+
   subscribeToMessages: () => {
     const { selectedUser } = get();
     if (!selectedUser) return;

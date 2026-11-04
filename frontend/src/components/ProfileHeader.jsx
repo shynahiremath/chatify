@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckIcon,
   LogOutIcon,
@@ -16,19 +17,24 @@ import MoodPicker from "./MoodPicker";
 
 const mouseClickSound = new Audio("/sounds/mouse-click.mp3");
 
-// quick presets shown above the status input, tap to use as-is
-const STATUS_PRESETS = ["Available", "Busy", "At work", "In a meeting", "Away"];
+const STATUS_PRESETS = [
+  "Available",
+  "Busy",
+  "At work",
+  "In a meeting",
+  "Away",
+];
 
 function ProfileHeader() {
   const { logout, authUser, updateProfile, isUpdatingProfile } = useAuthStore();
   const { isSoundEnabled, toggleSound } = useChatStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
-  const [selectedImg, setSelectedImg] = useState(null);
 
+  const [selectedImg, setSelectedImg] = useState(null);
   const fileInputRef = useRef(null);
 
   const handleImageUpload = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
@@ -37,8 +43,9 @@ function ProfileHeader() {
     reader.onloadend = async () => {
       const base64Image = reader.result;
       setSelectedImg(base64Image);
+
       const ok = await updateProfile({ profilePic: base64Image });
-      if (!ok) setSelectedImg(null); // revert the preview if the upload failed
+      if (!ok) setSelectedImg(null);
     };
   };
 
@@ -46,11 +53,11 @@ function ProfileHeader() {
     <div className="p-6 border-b border-slate-200 dark:border-slate-700/50">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          {/* AVATAR */}
           <div className="avatar online shrink-0">
             <button
+              type="button"
               className="size-14 rounded-full overflow-hidden relative group"
-              onClick={() => fileInputRef.current.click()}
+              onClick={() => fileInputRef.current?.click()}
               disabled={isUpdatingProfile}
               aria-label="Change profile photo"
             >
@@ -62,7 +69,7 @@ function ProfileHeader() {
 
               {isUpdatingProfile ? (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <span className="loading loading-spinner loading-sm text-white"></span>
+                  <span className="loading loading-spinner loading-sm text-white" />
                 </div>
               ) : (
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -80,27 +87,39 @@ function ProfileHeader() {
             />
           </div>
 
-          {/* USERNAME & STATUS */}
           <div className="min-w-0">
-            <UsernameEditor username={authUser.username} onSave={updateProfile} />
-            <StatusEditor statusMessage={authUser.statusMessage} onSave={updateProfile} />
+            <UsernameEditor
+              username={authUser.username}
+              onSave={updateProfile}
+            />
+
+            <StatusEditor
+              statusMessage={authUser.statusMessage}
+              onSave={updateProfile}
+            />
           </div>
         </div>
 
-        {/* BUTTONS */}
         <div className="flex gap-4 items-center shrink-0">
-            <MoodPicker />
-          {/* THEME TOGGLE BTN */}
+          <MoodPicker />
+
           <button
+            type="button"
             className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
             onClick={toggleTheme}
-            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={
+              isDarkMode ? "Switch to light mode" : "Switch to dark mode"
+            }
           >
-            {isDarkMode ? <SunIcon className="size-5" /> : <MoonIcon className="size-5" />}
+            {isDarkMode ? (
+              <SunIcon className="size-5" />
+            ) : (
+              <MoonIcon className="size-5" />
+            )}
           </button>
 
-          {/* LOGOUT BTN */}
           <button
+            type="button"
             className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
             onClick={logout}
             aria-label="Log out"
@@ -108,13 +127,12 @@ function ProfileHeader() {
             <LogOutIcon className="size-5" />
           </button>
 
-          {/* SOUND TOGGLE BTN */}
           <button
+            type="button"
             className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
             aria-label={isSoundEnabled ? "Mute sounds" : "Unmute sounds"}
             onClick={() => {
-              // play click sound before toggling
-              mouseClickSound.currentTime = 0; // reset to start
+              mouseClickSound.currentTime = 0;
               mouseClickSound
                 .play()
                 .catch((error) => console.log("Audio play failed:", error));
@@ -133,36 +151,55 @@ function ProfileHeader() {
   );
 }
 
-// Click the username (or the pencil) to edit it inline. Enter/blur saves,
-// Escape reverts. Doesn't call the API if nothing actually changed.
+// Inline username editor
 function UsernameEditor({ username, onSave }) {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(username);
   const [isSaving, setIsSaving] = useState(false);
-  const inputRef = useRef(null);
 
-  // the server may reject the change (name taken); reflect the real value if
-  // it updates from elsewhere while we're not mid-edit
-  useEffect(() => {
-    if (!isEditing) setValue(username);
-  }, [username, isEditing]);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     if (isEditing) inputRef.current?.select();
   }, [isEditing]);
 
+  const startEditing = () => {
+    setValue(username);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setValue(username);
+    setIsEditing(false);
+  };
+
   const commit = async () => {
+    if (isSaving) return;
+
     const trimmed = value.trim();
+
     if (!trimmed || trimmed === username) {
       setValue(username);
       setIsEditing(false);
       return;
     }
+
     setIsSaving(true);
-    const ok = await onSave({ username: trimmed });
-    setIsSaving(false);
-    if (ok) setIsEditing(false);
-    else setValue(username); // roll back on failure (e.g. name taken)
+
+    try {
+      const ok = await onSave({ username: trimmed });
+
+      if (ok) {
+        setIsEditing(false);
+      } else {
+        setValue(username);
+      }
+    } catch (error) {
+      console.error("Could not update username:", error);
+      setValue(username);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (isEditing) {
@@ -174,18 +211,23 @@ function UsernameEditor({ username, onSave }) {
           disabled={isSaving}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            }
+
             if (e.key === "Escape") {
-              setValue(username);
-              setIsEditing(false);
+              cancelEditing();
             }
           }}
           onBlur={commit}
           maxLength={30}
+          aria-label="Edit username"
           className="bg-slate-100 dark:bg-slate-900/60 border border-cyan-500/60 rounded px-2 py-0.5 text-slate-800 dark:text-slate-200 font-medium text-base w-36 focus:outline-none"
         />
+
         {isSaving ? (
-          <span className="loading loading-spinner loading-xs text-cyan-400"></span>
+          <span className="loading loading-spinner loading-xs text-cyan-400" />
         ) : (
           <CheckIcon className="size-4 text-cyan-400" />
         )}
@@ -196,67 +238,121 @@ function UsernameEditor({ username, onSave }) {
   return (
     <button
       type="button"
-      onClick={() => setIsEditing(true)}
+      onClick={startEditing}
       className="group flex items-center gap-1.5 max-w-[200px]"
     >
-      <h3 className="text-slate-800 dark:text-slate-200 font-medium text-base truncate">{username}</h3>
+      <h3 className="text-slate-800 dark:text-slate-200 font-medium text-base truncate">
+        {username}
+      </h3>
+
       <PencilIcon className="size-3.5 text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
     </button>
   );
 }
 
-// Same pattern as the username editor, plus a preset dropdown. An empty
-// status falls back to showing "Online" as a placeholder, unedited.
+// Inline status editor with preset choices
 function StatusEditor({ statusMessage, onSave }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showPresets, setShowPresets] = useState(false);
   const [value, setValue] = useState(statusMessage || "");
   const [isSaving, setIsSaving] = useState(false);
+
   const wrapperRef = useRef(null);
   const inputRef = useRef(null);
-
-  useEffect(() => {
-    if (!isEditing) setValue(statusMessage || "");
-  }, [statusMessage, isEditing]);
+  const commitRef = useRef(null);
 
   useEffect(() => {
     if (isEditing) inputRef.current?.select();
   }, [isEditing]);
 
-  useEffect(() => {
-    if (!isEditing) return;
-    const handleClickOutside = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        commit();
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing, value]);
+  const startEditing = () => {
+    setValue(statusMessage || "");
+    setShowPresets(false);
+    setIsEditing(true);
+  };
 
-  const commit = async () => {
+  const cancelEditing = () => {
+    setValue(statusMessage || "");
+    setShowPresets(false);
+    setIsEditing(false);
+  };
+
+  const commit = useCallback(async () => {
+    if (isSaving) return;
+
     const trimmed = value.trim();
+
     if (trimmed === (statusMessage || "")) {
       setIsEditing(false);
       setShowPresets(false);
       return;
     }
+
     setIsSaving(true);
-    const ok = await onSave({ statusMessage: trimmed });
-    setIsSaving(false);
-    setShowPresets(false);
-    if (ok) setIsEditing(false);
-    else setValue(statusMessage || "");
-  };
+
+    try {
+      const ok = await onSave({ statusMessage: trimmed });
+
+      if (ok) {
+        setIsEditing(false);
+      } else {
+        setValue(statusMessage || "");
+      }
+    } catch (error) {
+      console.error("Could not update status:", error);
+      setValue(statusMessage || "");
+    } finally {
+      setIsSaving(false);
+      setShowPresets(false);
+    }
+  }, [isSaving, value, statusMessage, onSave]);
+
+  // Keep the latest commit function available to the outside-click listener.
+  useEffect(() => {
+    commitRef.current = commit;
+  }, [commit]);
+
+  // Save the status when the user clicks outside the editor.
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const handleClickOutside = (e) => {
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(e.target)
+      ) {
+        commitRef.current?.();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isEditing]);
 
   const choosePreset = async (preset) => {
+    if (isSaving) return;
+
     setValue(preset);
     setIsSaving(true);
-    const ok = await onSave({ statusMessage: preset });
-    setIsSaving(false);
-    setShowPresets(false);
-    if (ok) setIsEditing(false);
+
+    try {
+      const ok = await onSave({ statusMessage: preset });
+
+      if (ok) {
+        setIsEditing(false);
+      } else {
+        setValue(statusMessage || "");
+      }
+    } catch (error) {
+      console.error("Could not update status:", error);
+      setValue(statusMessage || "");
+    } finally {
+      setIsSaving(false);
+      setShowPresets(false);
+    }
   };
 
   if (isEditing) {
@@ -270,25 +366,30 @@ function StatusEditor({ statusMessage, onSave }) {
             onChange={(e) => setValue(e.target.value)}
             onFocus={() => setShowPresets(true)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") commit();
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              }
+
               if (e.key === "Escape") {
-                setValue(statusMessage || "");
-                setIsEditing(false);
-                setShowPresets(false);
+                cancelEditing();
               }
             }}
             maxLength={40}
             placeholder="Set a status..."
+            aria-label="Edit status message"
             className="bg-slate-100 dark:bg-slate-900/60 border border-cyan-500/60 rounded px-2 py-0.5 text-slate-700 dark:text-slate-300 text-xs w-40 focus:outline-none"
           />
+
           {isSaving && (
-            <span className="loading loading-spinner loading-xs text-cyan-400"></span>
+            <span className="loading loading-spinner loading-xs text-cyan-400" />
           )}
+
           {!isSaving && value && (
             <button
               type="button"
               aria-label="Clear status"
-              onMouseDown={(e) => e.preventDefault()} // keep focus so blur doesn't fire first
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => choosePreset("")}
               className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
             >
@@ -303,7 +404,7 @@ function StatusEditor({ statusMessage, onSave }) {
               <button
                 key={preset}
                 type="button"
-                onMouseDown={(e) => e.preventDefault()} // keep focus so blur doesn't fire first
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => choosePreset(preset)}
                 className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/70 transition-colors"
               >
@@ -319,12 +420,13 @@ function StatusEditor({ statusMessage, onSave }) {
   return (
     <button
       type="button"
-      onClick={() => setIsEditing(true)}
+      onClick={startEditing}
       className="group flex items-center gap-1.5"
     >
       <p className="text-slate-500 dark:text-slate-400 text-xs truncate max-w-[160px]">
         {statusMessage || "Online"}
       </p>
+
       <PencilIcon className="size-3 text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" />
     </button>
   );
